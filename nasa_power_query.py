@@ -129,77 +129,83 @@ class NasaPowerCities:
     
 ####TODO IMPLEMENT THE NASA POWER QUERY CODE AS A METHOD####
 
-# params = {
-#     "parameters": "T2M_MAX,FROST_DAYS",
-#     "community": "RE",
-#     "longitude": -72.0000,
-#     "latitude": 45.0000,
-#     "format": "JSON",
-#     "start": 2016,
-#     "end": 2017
-# }
+params = {
+    "parameters": "T2M_MAX,FROST_DAYS",
+    "community": "RE",
+    "longitude": -72.0000,
+    "latitude": 45.0000,
+    "format": "JSON",
+    "start": 2016,
+    "end": 2017
+}
     
-# url = "https://power.larc.nasa.gov/api/temporal/climatology/point"
-# try:
-#     resp = requests.get(url, params=params)
-#     resp.raise_for_status()
-# except Exception as e:
-#     print(e)
-# try:
-#     data = resp.json()
-#     print(data)
+url = "https://power.larc.nasa.gov/api/temporal/climatology/point"
+try:
+    # resp = requests.get(url=url, params=params)
+    resp = requests.get(url, params=params)
+    resp.raise_for_status()
+except Exception as e:
+    print(e)
+try:
+    data = resp.json()
+    print(data)
     
-# except Exception as e:
-#     print(e)
+except Exception as e:
+    print(e)
 
 
 ####TODO IMPLEMENT THE CLIENT_SIDE PAGE WEBSCRAPING AS A METHOD####
-# from selenium import webdriver
-# from selenium.webdriver.support.wait import WebDriverWait
-# from selenium.webdriver.common.by import By
-# from bs4 import BeautifulSoup
+from selenium import webdriver
+from selenium.webdriver.support.wait import WebDriverWait
+from selenium.webdriver.common.by import By
+from bs4 import BeautifulSoup
 
 
-# def create_parser():
-#     parser = argparse.ArgumentParser(
-#         prog=""
-#     )
+def create_parser():
+    parser = argparse.ArgumentParser(
+        prog=""
+    )
 
-# def get_html_doc(url: str) -> Union[str, None]:
-#     if not isinstance(url, str):
-#         raise TypeError(f"'url' should be of type str, received {type(url).__name__}")
-#     try:
-#         response = requests.get(url=url)
-#         response.raise_for_status()
-#         html = response.text
-#     except requests.exceptions.HTTPError as e:
-#         print(f"Could not perform request: {e}")
-#         html = None
+def get_html_doc(url: str) -> Union[str, None]:
+    if not isinstance(url, str):
+        raise TypeError(f"'url' should be of type str, received {type(url).__name__}")
+    try:
+        response = requests.get(url=url)
+        response.raise_for_status()
+        html = response.text
+    except requests.exceptions.HTTPError as e:
+        print(f"Could not perform request: {e}")
+        html = None
 
 
-# def static_fetch_bs4(html: str) -> None:
-#     soup = BeautifulSoup(html, "html.parser")
+def static_fetch_bs4(html: str) -> None:
+    soup = BeautifulSoup(html, "html.parser")
     
-#     option_tags = soup.find_all("#parameterDictSelect")
-#     for option_tag in option_tags:
-#         print(option_tag)
+    option_tags = soup.find_all("#parameterDictSelect")
+    for option_tag in option_tags:
+        print(option_tag)
 
-# def client_side_scrape(url: str, tag_name: str):
+def client_side_scrape(url: str, tag_name: str, save_path: Optional[pathlib.Path]=None):
+    # save path validation 
+
+     #Access the list of standard HTML5 tag names
+    # tag_names = html5lib.constants.voidElements | html5lib.constants.scopingElements | \
+    #         html5lib.constants.specialElements | html5lib.constants.optionalStartTagSubsequent
     
-#     # Create a new instance of Firefox driver 
-#     driver = webdriver.Firefox()
-#     try:
-#         # Navigate to url and wait for all tags of interest to load
-#         driver.get(url=url)
+    # Create a new instance of Firefox driver 
+    driver = webdriver.Firefox()
+    try:
+        # Navigate to url and wait for all tags of interest to load
+        driver.get(url=url)
 
-#         # Wait
-#         ele = WebDriverWait(driver, 10).until(lambda x: x.find_element(By.TAG_NAME, "option"))
+        # Wait
+        ele = WebDriverWait(driver, 10).until(lambda x: x.find_element(By.TAG_NAME, "option"))
         
-#         html = driver.page_source
-#     except Exception as e:
-#         print(e)
-#         html = ""
-#     finally:
-#         driver.quit()
+        html = driver.page_source
+    except Exception as e:
+        print(e)
+        html = ""
+    finally:
+        driver.quit()
 
-#     return html
+    return html
