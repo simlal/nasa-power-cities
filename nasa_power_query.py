@@ -1,4 +1,4 @@
-from typing import List, Dict
+from typing import List, Dict, Union
 from functools import partial
 
 import geopy
@@ -7,7 +7,7 @@ from geopy.extra.rate_limiter import RateLimiter
 
 class NasaPowerCities:
     def __init__(self, names: List[str]) -> None:
-        self._names = names
+        self._names = self._validate_names(names)
 
         self._addresses = None
         self._coordinates = None
@@ -16,28 +16,20 @@ class NasaPowerCities:
     @property
     def names(self) -> List[str]:
         """
-        Retrieves or sets the names list
+        Retrieves or sets the names attributes corresponding to list of names of cities
 
         Args:
-            ___ (list[str]): The new list of cities names.
+            value (List[str]): The new list of cities names.
 
         Returns:
-
+            List[str]: The list of cities names.
         Raises:
         """
         return self._names
     
     @names.setter
-    def names(self, value: List[str]) -> None:
-        if not isinstance(value, list):
-            raise TypeError(f"'names' must be a list, received {type(value).__name__}")
-        
-        if not all([isinstance(city, str) for city in value]):
-            raise TypeError(f"All cities inside the 'names' list must be strings.")
-        
-        self._names = value
-    
-    
+    def names(self, value: List[str]) -> None:     
+        self._names = self._validate_names(value)
     
     @property
     def addresses(self) -> List[str]:
@@ -116,4 +108,14 @@ class NasaPowerCities:
         
         print("Done!")
     
-    
+    @staticmethod
+    def _validate_names(names: Union[list, str]) -> list:
+        if isinstance(names, str):
+            names = [names]
+        if not isinstance(names, list):
+            raise TypeError(f"'names' must be a str or a list, received {type(names).__name__}")
+        
+        if not all([isinstance(city, str) for city in names]):
+            raise TypeError(f"All cities inside the 'names' list must be strings.")
+        else:
+            return names
