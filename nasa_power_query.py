@@ -66,8 +66,26 @@ class NasaPowerCities:
         return self._geodetails
 
     def __str__(self) -> str:
-        cities_names = ", ".join(self._names)
-        return cities_names
+        #TODO IMPROVE LAYOUT OF PRINT
+        cities_info = [
+            f"\t{city}, "
+            f"latitude={self._coordinates[city] if self._coordinates else None}, "
+            f"longitude={self._coordinates[city] if self._coordinates else None}\n" 
+            for city in self._names
+        ]
+        return f"NasaPowerCities(\n{''.join(cities_info)})"
+    
+    @staticmethod
+    def _validate_names(names: Union[list, str]) -> list:
+        if isinstance(names, str):
+            names = [names]
+        if not isinstance(names, list):
+            raise TypeError(f"'names' must be a str or a list, received {type(names).__name__}")
+        
+        if not all([isinstance(city, str) for city in names]):
+            raise TypeError(f"All cities inside the 'names' list must be strings.")
+        else:
+            return names
         
     def get_geocoding_details(self, min_delay_seconds: float=3, **kwargs):
         
@@ -108,14 +126,4 @@ class NasaPowerCities:
         
         print("Done!")
     
-    @staticmethod
-    def _validate_names(names: Union[list, str]) -> list:
-        if isinstance(names, str):
-            names = [names]
-        if not isinstance(names, list):
-            raise TypeError(f"'names' must be a str or a list, received {type(names).__name__}")
-        
-        if not all([isinstance(city, str) for city in names]):
-            raise TypeError(f"All cities inside the 'names' list must be strings.")
-        else:
-            return names
+    
