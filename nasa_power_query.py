@@ -1,10 +1,21 @@
-from typing import List, Dict, Union
+from typing import List, Dict, Union, Optional
 from functools import partial
 import requests
+import time
 
 import geopy
 from geopy.geocoders import Nominatim
-from geopy.extra.rate_limiter import RateLimiter 
+from geopy.extra.rate_limiter import RateLimiter
+
+from selenium import webdriver
+from selenium.webdriver.firefox.service import Service as FirefoxService
+from webdriver_manager.firefox import GeckoDriverManager
+from selenium.webdriver.support.wait import WebDriverWait
+from selenium.webdriver.support import expected_conditions as EC
+from selenium.webdriver.support.ui import Select
+from selenium.webdriver.common.by import By
+from selenium.common.exceptions import NoSuchElementException
+
 
 class NasaPowerCities:
     def __init__(self, names: List[str]) -> None:
@@ -13,6 +24,8 @@ class NasaPowerCities:
         self._addresses = None
         self._coordinates = None
         self._geodetails = None
+
+        self._climatologies = None
     
     @property
     def names(self) -> List[str]:
@@ -65,9 +78,21 @@ class NasaPowerCities:
                 response from the geopy query.
         """
         return self._geodetails
+    
+    @property
+    def climatologies(self) -> Dict[str, dict]:
+        """
+        Retrieves the cities climatologies extracted from the NASA POWER API with the 'fetch_climatogolies' method.
+
+        Returns:
+            Dict[str, dict]: A nested dictionary where the outer dict key is the 
+                given city name in 'names' attribute. The corresponding value for each key is the
+                response content from the NASA POWER climatology API endpoint.
+        """
+        return self._geodetails
 
     def __str__(self) -> str:
-        #TODO IMPROVE LAYOUT OF PRINT
+        #* IMPROVE LAYOUT OF PRINT
         cities_info = [
             f"\t{city}, "
             f"latitude={self._coordinates[city] if self._coordinates else None}, "
@@ -76,6 +101,7 @@ class NasaPowerCities:
         ]
         return f"NasaPowerCities(\n{''.join(cities_info)})"
     
+
     @staticmethod
     def _validate_names(names: Union[list, str]) -> list:
         if isinstance(names, str):
@@ -126,80 +152,146 @@ class NasaPowerCities:
         self._geodetails = geodetails_container
         
         print("Done!")
-    
-####TODO IMPLEMENT THE NASA POWER QUERY CODE AS A METHOD####
 
-# params = {
-#     "parameters": "T2M_MAX,FROST_DAYS",
-#     "community": "RE",
-#     "longitude": -72.0000,
-#     "latitude": 45.0000,
-#     "format": "JSON",
-#     "start": 2016,
-#     "end": 2017
-# }
-    
-# url = "https://power.larc.nasa.gov/api/temporal/climatology/point"
-# try:
-#     resp = requests.get(url, params=params)
-#     resp.raise_for_status()
-# except Exception as e:
-#     print(e)
-# try:
-#     data = resp.json()
-#     print(data)
-    
-# except Exception as e:
-#     print(e)
-
-
-####TODO IMPLEMENT THE CLIENT_SIDE PAGE WEBSCRAPING AS A METHOD####
-# from selenium import webdriver
-# from selenium.webdriver.support.wait import WebDriverWait
-# from selenium.webdriver.common.by import By
-# from bs4 import BeautifulSoup
-
-
-# def create_parser():
-#     parser = argparse.ArgumentParser(
-#         prog=""
-#     )
-
-# def get_html_doc(url: str) -> Union[str, None]:
-#     if not isinstance(url, str):
-#         raise TypeError(f"'url' should be of type str, received {type(url).__name__}")
-#     try:
-#         response = requests.get(url=url)
-#         response.raise_for_status()
-#         html = response.text
-#     except requests.exceptions.HTTPError as e:
-#         print(f"Could not perform request: {e}")
-#         html = None
-
-
-# def static_fetch_bs4(html: str) -> None:
-#     soup = BeautifulSoup(html, "html.parser")
-    
-#     option_tags = soup.find_all("#parameterDictSelect")
-#     for option_tag in option_tags:
-#         print(option_tag)
-
-# def client_side_scrape(url: str, tag_name: str, save_path: Optional[pathlib.Path]=None):
-
-#     # Create a new instance of Firefox driver 
-#     driver = webdriver.Firefox()
-#     try:
-#         # Navigate to url and wait for all tags of interest to load
-#         driver.get(url=url)
-
-#         # Wait
-#         ele = WebDriverWait(driver, 10).until(lambda x: x.find_element(By.TAG_NAME, "option"))
+    def fetch_climatology(self, 
+        climate_params: List[str],
+        community: str="SB",
+        format: str="JSON",
+        start: Optional[int]=None,
+        end: Optional[int]=None
+    ) -> None:
+        # climate_params type and amount validation
+        if not isinstance(climate_params, list):
+            raise TypeError(f"'climate_params' must be of type list, received{type(climate_params).__name__}")
+        if len(climate_params) > 20:
+            raise ValueError("The number of climate_params should be less than or equal to 20.")
         
-#         html = driver.page_source
-#     except Exception as e:
-#         print(e)
-#         html = ""
-#     finally:
-#         driver.quit()
+        if not isinstance(community, str) and not isinstance(format, str):
+            raise TypeError(
+                f"'community' and 'format must be of type list, "
+                f"received{type(community).__name__} and {type(format).__name__} respectively"
+            )
+        # 'Start' and 'End' type/value validation
+        try:
+            start = int(start) if start is not None else None
+        except:
+            raise TypeError(f"'start' must be of type int, received {type(start).__name__}")
+        try:
+            end = int(end) if end is not None else None
+        except:
+            raise TypeError(f"'end' must be of type int, received {type(end).__name__}")
+        if ((start is None and end is not None) or
+            (start is not None and end is None)):
+            raise ValueError("Both 'start' and 'end' should be None if no year range desired")
+        if isinstance(start, int) and isinstance(end, int):
+            if start > end:
+                raise ValueError("'start' should be smaller than end")
+            
+        # Base params for NASA POWER query
+        base_params = {
+            "parameters": ",".join(climate_params),
+            "community": community,
+            "format": format,
+            "start": start,
+            "end": end
+        }
+        if start is None and end is None:
+            base_params.pop("start")
+            base_params.pop("end")
+        base_params_string = (
+            f"Preparing to fetch climatologies with base parameters:\n"
+            f"\t-parameters: {base_params['parameters']}\n"
+            f"\t-community: {base_params['community']}\n"
+            f"\t-format: {base_params['format']}"
+        )
+        if "start" in base_params and "end" in base_params:
+            start_end_string = (
+                f"\t-start: {base_params['start']}\n"
+                f"\t-end: {base_params['end']}"
+            )
+            base_params_string += start_end_string
+        print(base_params_string)
 
-#     return html
+        # Prepare query params for each city        
+        params_cities = {}
+        if self._coordinates is None:
+            raise ValueError("Get the geocoding for the cities first using the 'get_geocoding_details' method.")
+        for city in self._names:
+            if city not in self._coordinates:
+                print(f"Will not fetch climatology for {city} since no valid coordinates.")
+            else:
+                base_params["latitude"] = self._coordinates[city]["latitude"]
+                base_params["longitude"] = self._coordinates[city]["longitude"]
+
+            params_cities[city] = base_params
+        
+        # Multiple single-threaded queries for all cities within the object
+        url = "https://power.larc.nasa.gov/api/temporal/climatology/point"
+        climatologies = {}
+        
+        for city in params_cities:
+            try:
+                print(f"Fetching climatology for {city}...")
+                resp = requests.get(url, params=params_cities[city])
+                resp.raise_for_status()
+            except requests.exceptions.RequestException as e:
+                print(f"Request error for {city}: {e}")
+            if format == "JSON":
+                try:
+                    data = resp.json()
+                except Exception as e:
+                    print(f"Error parsing the data from {city}: {e}")
+            else:
+                data = resp.content
+            climatologies[city] = data
+            time.sleep(1)    # Avoid API request limit errors
+        return climatologies
+
+
+def get_nasapower_params(
+            url: str="https://power.larc.nasa.gov/#resources", 
+            webdriver_timeout: Union[float, int]=10,
+            ele_id: str="parameterDictSelect",
+        ) -> Dict[str, str]:
+    
+        if not isinstance(url, str):
+            raise TypeError(f"'url' must be a str, received {type(url).__name__}")
+        try:
+            webdriver_timeout = float(webdriver_timeout)
+        except:
+            raise TypeError(f"'webdriver_timeout' must be a float or int, received {type(webdriver_timeout).__name__}")
+        
+        # Perform client-side tag scraping
+        print("Opening FireFox webdriver with Selenium 4...")
+        driver = webdriver.Firefox(service=FirefoxService(GeckoDriverManager().install()))
+        try:
+            print(f"Requesting {url} for client-side scrapping...")
+            driver.get(url=url)    # Navigate to url
+            # Wait for all specified tags to load before getting the source
+            WebDriverWait(driver=driver, timeout=webdriver_timeout).until(
+                EC.presence_of_element_located((By.ID, ele_id))
+            )
+            html = driver.page_source
+            print(f"Full client-side rendered containing {ele_id} options.")
+            
+            # Extract all option from the select dropdown
+            select_element = driver.find_element(By.ID, ele_id) 
+            select = Select(select_element)
+            
+            power_param_dict = {}
+            for option in select.options:
+                short_name = option.get_attribute("value")    # Abbreviation for the POWER params
+                long_name = option.text    # Long name for the POWER params
+                # Skip the option if it has no value or a specific text
+                if short_name and long_name != "Select a parameter...":
+                    power_param_dict[short_name] = long_name
+        
+        except NoSuchElementException as e:
+            print(f"Could not find element of {id=}: Error {e}")
+        
+        finally:
+            driver.quit()
+        
+        return power_param_dict
+
+        
