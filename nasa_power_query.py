@@ -14,11 +14,20 @@ from selenium.webdriver.support.wait import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.support.ui import Select
 from selenium.webdriver.common.by import By
-from selenium.common.exceptions import NoSuchElementException
+from selenium.common.exceptions import NoSuchElementException, TimeoutException
 
 
 class NasaPowerCities:
     def __init__(self, names: List[str]) -> None:
+        """
+        Initializes a new instance of the NasaPowerCities class.
+
+        Args:
+            names (List[str]): A list of city names to be handled.
+
+        Returns:
+            None
+        """
         self._names = self._validate_names(names)
 
         self._addresses = None
@@ -37,7 +46,6 @@ class NasaPowerCities:
 
         Returns:
             List[str]: The list of cities names.
-        Raises:
         """
         return self._names
     
@@ -89,14 +97,14 @@ class NasaPowerCities:
                 given city name in 'names' attribute. The corresponding value for each key is the
                 response content from the NASA POWER climatology API endpoint.
         """
-        return self._geodetails
+        return self._climatologies
 
     def __str__(self) -> str:
         #* IMPROVE LAYOUT OF PRINT
         cities_info = [
             f"\t{city}, "
-            f"latitude={self._coordinates[city] if self._coordinates else None}, "
-            f"longitude={self._coordinates[city] if self._coordinates else None}\n" 
+            f"latitude={self._coordinates[city]['latitude'] if self._coordinates else None}, "
+            f"longitude={self._coordinates[city]['longitude'] if self._coordinates else None}\n" 
             for city in self._names
         ]
         return f"NasaPowerCities(\n{''.join(cities_info)})"
@@ -115,7 +123,17 @@ class NasaPowerCities:
             return names
         
     def get_geocoding_details(self, min_delay_seconds: float=3, **kwargs):
-        
+        """
+        Retrieves geocoding details for the given cities and updates the relevant attributes.
+
+        Args:
+            timeout (int, optional): The maximum time to wait for geocoding results, in seconds. Defaults to 3.
+            min_delay_seconds (float, optional): The minimum delay between requests, in seconds. Defaults to 1.
+            **kwargs: Additional keyword arguments for geocoding.
+
+        Returns:
+            None
+        """
         # Set the geocode object once with specified kwargs
         geolocator = Nominatim(user_agent="NasaPowerCities")
         geocode_kwargs = {k: v for k, v in kwargs.items()}
@@ -160,6 +178,23 @@ class NasaPowerCities:
         start: Optional[int]=None,
         end: Optional[int]=None
     ) -> None:
+        """
+        Fetches the climatology data for the given cities and parameters.
+
+        Args:
+            climate_params (List[str]): A list of climatology parameters to fetch (maximum of 20).
+            community (str, optional): The community for the query. Defaults to "SB".
+            format (str, optional): The response format, either "JSON" or other formats. Defaults to "JSON".
+            start (Optional[int], optional): The start year for the range. Must be specified with 'end'. Defaults to None.
+            end (Optional[int], optional): The end year for the range. Must be specified with 'start'. Defaults to None.
+
+        Returns:
+            None
+
+        Raises:
+            TypeError: If the input types do not match the expected types.
+            ValueError: If the input values are not consistent with the expected constraints.
+        """
         # climate_params type and amount validation
         if not isinstance(climate_params, list):
             raise TypeError(f"'climate_params' must be of type list, received{type(climate_params).__name__}")
@@ -244,16 +279,27 @@ class NasaPowerCities:
             else:
                 data = resp.content
             climatologies[city] = data
+            print("Done!")
             time.sleep(1)    # Avoid API request limit errors
-        return climatologies
-
+        self._climatologies = climatologies
 
 def get_nasapower_params(
             url: str="https://power.larc.nasa.gov/#resources", 
             webdriver_timeout: Union[float, int]=10,
             ele_id: str="parameterDictSelect",
         ) -> Dict[str, str]:
-    
+        """
+        Retrieves NASA power parameters from the specified URL.
+
+        Args:
+            url (str, optional): The URL to scrape. Defaults to "https://power.larc.nasa.gov/#resources".
+            webdriver_timeout (Union[float, int], optional): The maximum time to wait for the webdriver, in seconds. Defaults to 10.
+            tag_name (str, optional): The HTML tag name to look for. Defaults to "option".
+            skip (bool, optional): Whether to skip this operation. Defaults to True.
+
+        Returns:
+            List[str]: A list of NASA power parameters.
+        """
         if not isinstance(url, str):
             raise TypeError(f"'url' must be a str, received {type(url).__name__}")
         try:
@@ -267,7 +313,7 @@ def get_nasapower_params(
         try:
             print(f"Requesting {url} for client-side scrapping...")
             driver.get(url=url)    # Navigate to url
-            # Wait for all specified tags to load before getting the source
+            # Wait for select id tag to load before getting the source
             WebDriverWait(driver=driver, timeout=webdriver_timeout).until(
                 EC.presence_of_element_located((By.ID, ele_id))
             )
@@ -277,6 +323,10 @@ def get_nasapower_params(
             # Extract all option from the select dropdown
             select_element = driver.find_element(By.ID, ele_id) 
             select = Select(select_element)
+            # Wait for at least two option to be loaded within the select element
+            WebDriverWait(driver, timeout=webdriver_timeout).until(
+                lambda x: len(select.options) > 2
+            )
             
             power_param_dict = {}
             for option in select.options:
@@ -288,7 +338,8 @@ def get_nasapower_params(
         
         except NoSuchElementException as e:
             print(f"Could not find element of {id=}: Error {e}")
-        
+        except TimeoutException as e:
+            print(f"Timed out waiting for element with ID '{ele_id}' to load. Error: {e}")
         finally:
             driver.quit()
         
