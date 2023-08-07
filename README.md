@@ -14,7 +14,7 @@ What's needed:
 1. Install Firefox and Conda if not already done.
 2. `git clone https://github.com/simlal/nasa-power-cities.git`
 3. `cd nasa-power-cities`
-4. `conda create nasa_power_env --file requirements.txt`
+4. `conda create -n nasa_power_env --file requirements.txt`
 5. `conda activate nasa_power_env`
 
 ## Example usage
