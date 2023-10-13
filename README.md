@@ -1,6 +1,6 @@
 # NASA POWER climatology API data consumption for cities
 
-A simple Python3+ module to fetch climate data for cities using the NASA POWER API climatology endpoint
+A simple Python3+ module to fetch climate data for cities using the NASA POWER API climatology endpoint. Be careful for rate limits on querries
 
 ## Installation
 The module could be further customized but here's my simple implementation.
